@@ -107,7 +107,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="App_Data\LogLocation.txt" />
     <Content Include="Global.asax" />
     <Content Include="Web.config" />
   </ItemGroup>
@@ -116,6 +115,7 @@
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\MusicController.cs" />
     <Compile Include="Controllers\WoTController.cs" />
+    <Compile Include="ErrorLog.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
@@ -129,7 +129,9 @@
   <ItemGroup>
     <Content Include="packages.config" />
     <Content Include="App_Data\SongList.json" />
+    <Content Include="App_Data\Config.json" />
     <None Include="Properties\PublishProfiles\BaseIIS.pubxml" />
+    <None Include="Properties\PublishProfiles\Default Settings.pubxml" />
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

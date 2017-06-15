@@ -1,24 +1,42 @@
 ﻿using KidesServer.Models;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Web;
 
 namespace KidesServer
 {
 	public static class AppConfig
 	{
-		public static string folderLocation = AppDomain.CurrentDomain.GetData("DataDirectory").ToString();
+		public static string folderLocation = String.Empty;
 		private static ConfigModel _config;
+
+		static AppConfig()
+		{
+			try
+			{
+				folderLocation = AppDomain.CurrentDomain.GetData("DataDirectory").ToString();
+			}
+			catch(Exception e)
+			{
+				ErrorLog.writeLog(e.Message);
+			}
+		}
+
 		public static ConfigModel config
 		{
 			get
 			{
-				if(_config == null)
-					_config = JsonConvert.DeserializeObject<ConfigModel>(File.ReadAllText($"{folderLocation}\\Config.json"));
-				return _config;
+				try
+				{
+					if (_config == null)
+						_config = JsonConvert.DeserializeObject<ConfigModel>(File.ReadAllText($"{folderLocation}\\Config.json"));
+					return _config;
+				}
+				catch (Exception e)
+				{
+					ErrorLog.writeLog(e.Message);
+					return null;
+				}
 			}
 		}
 	}

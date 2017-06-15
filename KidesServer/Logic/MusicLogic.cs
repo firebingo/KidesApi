@@ -81,14 +81,11 @@ namespace KidesServer.Logic
 			List<string> logFiles = new List<string>();
 			try
 			{
-				using (StreamReader sr = new StreamReader($"{AppConfig.folderLocation}/LogLocation.txt"))
-				{
-					logPath = sr.ReadToEnd();
-				}
-				logFiles = Directory.GetFiles(logPath).ToList();
+				logFiles = Directory.GetFiles(AppConfig.config.iisLogLocation).ToList();
 			}
 			catch (Exception e)
 			{
+				ErrorLog.writeLog(e.Message);
 				result.message = e.Message;
 				return result;
 			}
@@ -119,6 +116,7 @@ namespace KidesServer.Logic
 				}
 				catch (Exception e)
 				{
+					ErrorLog.writeLog(e.Message);
 					result.message = e.Message;
 					return result;
 				}

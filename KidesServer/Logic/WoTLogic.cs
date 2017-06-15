@@ -4,30 +4,45 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using KidesServer.Models;
 using System.Net.Http.Headers;
+using System.IO;
 
 namespace KidesServer.Logic
 {
 	public static class WoTLogic
 	{
-		private static string appId = AppConfig.config.wotAppId;
-		private static Dictionary<string, string> userInfoUrls = new Dictionary<string, string>()
-		{
-			{ "na", "https://api.worldoftanks.com/wot/account/list/" },
-			{ "eu", "https://api.worldoftanks.eu/wot/account/list/" },
-			{ "ru", "https://api.worldoftanks.ru/wot/account/list/" },
-			{ "kr", "https://api.worldoftanks.kr/wot/account/list/" },
-			{ "asia", "https://api.worldoftanks.asia/wot/account/list/" },
-		};
-		private static Dictionary<string, string> userDataUrls = new Dictionary<string, string>()
-		{
-			{ "na", "https://api.worldoftanks.com/wot/account/info/" },
-			{ "eu", "https://api.worldoftanks.eu/wot/account/info/" },
-			{ "ru", "https://api.worldoftanks.ru/wot/account/info/" },
-			{ "kr", "https://api.worldoftanks.kr/wot/account/info/" },
-			{ "asia", "https://api.worldoftanks.asia/wot/account/info/" },
-		};
+		private static string appId = "";
+		private static Dictionary<string, string> userInfoUrls = null;
+		private static Dictionary<string, string> userDataUrls = null;
 		//public static string userInfoUrl = "https://api.worldoftanks.com/wot/account/list/";
 		//public static string userDataUrl = "https://api.worldoftanks.com/wot/account/info/";
+
+		static WoTLogic()
+		{
+			try
+			{
+				appId = AppConfig.config.wotAppId;
+				userInfoUrls = new Dictionary<string, string>()
+				{
+					{ "na", "https://api.worldoftanks.com/wot/account/list/" },
+					{ "eu", "https://api.worldoftanks.eu/wot/account/list/" },
+					{ "ru", "https://api.worldoftanks.ru/wot/account/list/" },
+					{ "kr", "https://api.worldoftanks.kr/wot/account/list/" },
+					{ "asia", "https://api.worldoftanks.asia/wot/account/list/" },
+				};
+				userDataUrls = new Dictionary<string, string>()
+				{
+					{ "na", "https://api.worldoftanks.com/wot/account/info/" },
+					{ "eu", "https://api.worldoftanks.eu/wot/account/info/" },
+					{ "ru", "https://api.worldoftanks.ru/wot/account/info/" },
+					{ "kr", "https://api.worldoftanks.kr/wot/account/info/" },
+					{ "asia", "https://api.worldoftanks.asia/wot/account/info/" },
+				};
+			}
+			catch (Exception e)
+			{
+				ErrorLog.writeLog(e.Message);
+			}
+		}
 
 		public static async Task<WotBasicUser> callInfoAPI(string searchString, string region)
 		{
@@ -56,6 +71,7 @@ namespace KidesServer.Logic
 				}
 				catch (Exception e)
 				{
+					ErrorLog.writeLog(e.Message);
 					return null;
 				}
 			}
@@ -77,7 +93,7 @@ namespace KidesServer.Logic
 			{
 				try
 				{
-					var dataObjects =  response.Content.ReadAsAsync<WotUserInfo>().Result;
+					var dataObjects = response.Content.ReadAsAsync<WotUserInfo>().Result;
 					if (dataObjects != null)
 						return dataObjects;
 					else
@@ -85,6 +101,7 @@ namespace KidesServer.Logic
 				}
 				catch (Exception e)
 				{
+					ErrorLog.writeLog(e.Message);
 					return null;
 				}
 			}

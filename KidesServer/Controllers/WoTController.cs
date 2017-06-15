@@ -18,9 +18,10 @@ namespace KidesServer.Controllers
 			var success = true;
 			var message = "";
 			WotUserInfo data = null;
-			var userInfo = await WoTLogic.callInfoAPI(username, region);
+			WotBasicUser userInfo = null;
 			try
 			{
+				userInfo = await WoTLogic.callInfoAPI(username, region);
 				if (userInfo.status == "error")
 				{
 					var code = Int32.Parse(userInfo.error.code);
@@ -29,6 +30,7 @@ namespace KidesServer.Controllers
 			}
 			catch (Exception e)
 			{
+				ErrorLog.writeLog(e.Message);
 				return Request.CreateErrorResponse(HttpStatusCode.InternalServerError, e.Message);
 			}
 			if (userInfo != null && userInfo.data != null)

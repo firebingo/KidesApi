@@ -62,3 +62,6 @@ Assets/Advanced Foliage Shader v4/Demos.meta
 /KidesServer/App_Data/Config.json
 /KidesServer/App_Data/LogLocation.txt
 /KidesServer/App_Data/SongList.json
+*.pubxml
+/KidesServer/Properties/PublishProfiles
+/*.PublishSettings
