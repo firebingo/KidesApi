@@ -12,5 +12,25 @@ namespace KidesServer.Models
 		public string wotAppId;
 		public string iisLogLocation;
 		public string baseMusicUrl;
+		public DBConfigModel DBConfig;
+	}
+
+	public class DBConfigModel
+	{
+		public string userName;
+		public string password;
+		public string address;
+		public string port;
+		public string schemaName;
+		private string _connectionString;
+		public string connectionString
+		{
+			get
+			{
+				if(_connectionString == null)
+					_connectionString = $"server={address};uid={userName};pwd={password};database={schemaName};charset=utf8mb4";
+				return _connectionString;
+			}
+		}
 	}
 }
