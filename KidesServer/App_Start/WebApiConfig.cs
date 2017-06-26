@@ -1,4 +1,5 @@
-﻿using System.Net.Http.Headers;
+﻿using Newtonsoft.Json;
+using System.Net.Http.Headers;
 using System.Web.Http;
 
 namespace KidesServer
@@ -20,6 +21,11 @@ namespace KidesServer
 
 			// Return in JSON format
 			config.Formatters.JsonFormatter.SupportedMediaTypes.Add(new MediaTypeHeaderValue("text/html"));
+			config.Formatters.JsonFormatter.SerializerSettings = new Newtonsoft.Json.JsonSerializerSettings
+			{
+				DateTimeZoneHandling = DateTimeZoneHandling.Utc,
+				DateFormatHandling = DateFormatHandling.IsoDateFormat
+			};
 		}
     }
 }

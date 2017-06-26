@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace KidesServer.Models
 {
@@ -14,6 +15,28 @@ namespace KidesServer.Models
 		public int messageCount;
 		public ulong userId;
 		public bool isDeleted;
+		public int rank;
+		public bool isBanned;
+	}
+
+	public class DiscordUserInfo : BaseResult
+	{
+		public ulong userId;
+		public string userName;
+		public string nickName;
+		public bool isBot;
+		public string role;
+		public string avatarUrl;
+		public DateTime? joinedDate;
+		public bool isDeleted;
+		public bool isBanned;
+		public List<DiscordUserMessageDensity> messageDensity;
+	}
+
+	public class DiscordUserMessageDensity
+	{
+		public int messageCount;
+		public DateTime date;
 	}
 
 	public class DiscordRoleList : BaseResult

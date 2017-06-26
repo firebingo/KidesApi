@@ -28,7 +28,7 @@ namespace KidesServer.Models
 			get
 			{
 				if(_connectionString == null)
-					_connectionString = $"server={address};uid={userName};pwd={password};database={schemaName};charset=utf8mb4";
+					_connectionString = $"server={address};uid={userName};pwd={password};database={schemaName};charset=utf8mb4;Allow User Variables=True";
 				return _connectionString;
 			}
 		}
