@@ -41,7 +41,7 @@ namespace KidesServer.Logic
 					var message = new DiscordMessageListRow();
 					message.userName = $"{r.userName}{(r.nickName != null ? $" ({r.nickName})" : "")}";
 					message.messageCount = r.messageCount;
-					message.userId = r.userId;
+					message.userId = r.userId.ToString();
 					message.isDeleted = r.isDeleted;
 					message.rank = r.rank;
 					message.isBanned = r.isBanned;
@@ -101,19 +101,21 @@ namespace KidesServer.Logic
 									WHERE users.userID=@userId and serverID=@serverId;";
 				var readUser = new UserInfoReadModel();
 				DataLayerShortcut.ExecuteReader<UserInfoReadModel>(readUserInfo, readUser, queryString, new MySqlParameter("@serverId", serverId), new MySqlParameter("@userId", userId));
+				if (readUser.userId == 0)
+					throw new Exception("User not found");
 				queryString = @"SELECT COUNT(*), MONTH(mesTime), YEAR(mesTime) 
 								FROM messages 
-								WHERE userID=@userId AND serverID=@serverId AND NOT isDeleted 
+								WHERE userID=@userId AND serverID=@serverId AND NOT isDeleted AND mesTime IS NOT NULL
 								GROUP BY DATE_FORMAT(mesTime, '%Y%m')
 								ORDER BY mesTime DESC;";
 				List<DiscordUserMessageDensity> density = new List<DiscordUserMessageDensity>();
 				DataLayerShortcut.ExecuteReader<List<DiscordUserMessageDensity>>(readUserMessageDensity, density, queryString, new MySqlParameter("@serverId", serverId), new MySqlParameter("@userId", userId));
 				var roles = loadRoleList(serverId);
-				result.userId = readUser.userId;
+				result.userId = readUser.userId.ToString();
 				result.userName = readUser.userName;
 				result.nickName = readUser.nickName;
 				result.isBot = readUser.isBot;
-				result.avatarUrl = readUser.avatarUrl.Replace("size=128", "size=256");
+				result.avatarUrl = readUser.avatarUrl != null ? readUser.avatarUrl.Replace("size=128", "size=256") : null;
 				result.joinedDate = readUser.joinedDate;
 				result.isDeleted = readUser.isDeleted;
 				result.isBanned = readUser.isBanned;
@@ -205,7 +207,7 @@ namespace KidesServer.Logic
 			{
 				var roleObject = new DiscordRoleListRow();
 				ulong? temp = reader.GetValue(0) as ulong?;
-				roleObject.roleId = temp.HasValue ? temp.Value : 0;
+				roleObject.roleId = temp.HasValue ? temp.Value.ToString() : "0";
 				roleObject.roleName = reader.GetString(1);
 				roleObject.roleColor = reader.GetString(2);
 				roleObject.isEveryone = reader.GetBoolean(3);
@@ -218,7 +220,7 @@ namespace KidesServer.Logic
 			var roleBuilder = new StringBuilder();
 			foreach (var Id in roleIds)
 			{
-				var role = roles.results.FirstOrDefault(x => x.roleId == Id);
+				var role = roles.results.FirstOrDefault(x => ulong.Parse(x.roleId) == Id);
 				if (role != null)
 				{
 					if (role.isEveryone)

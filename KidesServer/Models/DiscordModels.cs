@@ -13,7 +13,7 @@ namespace KidesServer.Models
 		public string userName;
 		public string role;
 		public int messageCount;
-		public ulong userId;
+		public string userId;
 		public bool isDeleted;
 		public int rank;
 		public bool isBanned;
@@ -21,7 +21,7 @@ namespace KidesServer.Models
 
 	public class DiscordUserInfo : BaseResult
 	{
-		public ulong userId;
+		public string userId;
 		public string userName;
 		public string nickName;
 		public bool isBot;
@@ -46,7 +46,7 @@ namespace KidesServer.Models
 
 	public class DiscordRoleListRow
 	{
-		public ulong roleId;
+		public string roleId;
 		public string roleName;
 		public string roleColor;
 		public bool isEveryone;
