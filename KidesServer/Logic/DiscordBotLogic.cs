@@ -8,14 +8,19 @@ using System.Linq;
 using System.Text;
 using System.Web;
 using Newtonsoft.Json;
+using KidesServer.Helpers;
 
 namespace KidesServer.Logic
 {
 	public static class DiscordBotLogic
 	{
-		public static DiscordMessageListResult getMesageList(int count, ulong serverId, DateTime startDate, MessageSort sort, bool isDesc, string userFilter)
+		public static DiscordMessageListResult getMesageList(DiscordMessageListInput input)
 		{
 			DiscordMessageListResult result = new DiscordMessageListResult();
+			DiscordMessageListResult cacheResult = DiscordCache.getCacheObject("MessageListCache", input.hash) as DiscordMessageListResult;
+			if (cacheResult != null)
+				return cacheResult;
+
 			result.results = new List<DiscordMessageListRow>();
 			try
 			{
@@ -27,15 +32,15 @@ namespace KidesServer.Logic
 									 FROM messages 
 									 LEFT JOIN usersinservers ON messages.userID=usersinservers.userID
 									 LEFT JOIN users on usersinservers.userID=users.userID
-									 WHERE messages.serverID=@serverId AND usersinservers.serverID=@serverId AND NOT messages.isDeleted AND messages.mesTime > @startDate AND COALESCE(nickName, userName) LIKE @userFilter GROUP BY userID
+									 WHERE messages.serverID=@serverId AND usersinservers.serverID=@serverId AND NOT messages.isDeleted AND messages.mesTime > @startDate
+									 GROUP BY userID
 									 ORDER BY mesCount DESC) prequery) mainquery
-									 ORDER BY {messageListSortOrderToParam(sort, isDesc)}
-									 LIMIT @limit;";
+									 ORDER BY {messageListSortOrderToParam(input.sort, input.isDesc)}";
 				var readList = new MessageListReadModel();
 				readList.rows = new List<MessageListReadModelRow>();
-				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", serverId), 
-					new MySqlParameter("@limit", count), new MySqlParameter("@userFilter", (userFilter == null ? string.Empty : $"%{userFilter}%")), new MySqlParameter("@startDate", startDate));
-				var roles = loadRoleList(serverId);
+				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", input.serverId), new MySqlParameter("@startDate", input.startDate));
+				var roles = loadRoleList(input.serverId);
+				//Add the rows ot the result
 				foreach(var r in readList.rows)
 				{
 					var message = new DiscordMessageListRow();
@@ -46,10 +51,58 @@ namespace KidesServer.Logic
 					message.rank = r.rank;
 					message.isBanned = r.isBanned;
 					message.role = buildRoleList(r.roleIds, roles);
+					message.roleIds = new List<string>(r.roleIds.ConvertAll<string>(x => x.ToString()));
 					result.results.Add(message);
 				}
-				if(userFilter != string.Empty)
-					result.results = result.results.Where(x => x.userName.ToLowerInvariant().Contains(userFilter.ToLowerInvariant())).ToList();
+				//Filter by username/nickname
+				if(input.userFilter != string.Empty)
+					result.results = result.results.Where(x => x.userName.ToLowerInvariant().Contains(input.userFilter.ToLowerInvariant())).ToList();
+				//Create the total row for the filtering
+				DiscordMessageListRow totalRow = null;
+				if (input.includeTotal)
+				{
+					totalRow = new DiscordMessageListRow();
+					totalRow.userName = "Total";
+					totalRow.messageCount = result.results.Sum(x => x.messageCount);
+					totalRow.userId = string.Empty;
+					totalRow.isDeleted = false;
+					totalRow.rank = result.results.Count;
+					totalRow.isBanned = false;
+					totalRow.role = string.Empty;
+					totalRow.roleIds = new List<string>();
+				}
+				//Filter by role
+				DiscordMessageListRow totalRoleRow = null;
+				if (input.roleId.HasValue)
+				{
+					result.results = result.results.Where(x => x.roleIds.Contains(input.roleId.Value.ToString())).ToList();
+					if (input.includeTotal)
+					{
+						totalRoleRow = new DiscordMessageListRow();
+						totalRoleRow.userName = "Total (Role)";
+						totalRoleRow.messageCount = result.results.Sum(x => x.messageCount);
+						totalRoleRow.userId = string.Empty;
+						totalRoleRow.isDeleted = false;
+						totalRoleRow.rank = result.results.Count;
+						totalRoleRow.isBanned = false;
+						totalRoleRow.role = buildRoleList(new List<ulong>() { input.roleId.Value }, roles);
+						totalRoleRow.roleIds = roles.results.FirstOrDefault(x => x.roleId == input.roleId.Value.ToString()) == null ? new List<string>() : new List<string>() { input.roleId.ToString() };
+					}
+				}
+				//Set total count of results without paging
+				result.totalCount = result.results.Count;
+				//Paging
+				var countToTake = input.count;
+				if (input.start > result.results.Count)
+					input.start = result.results.Count;
+				if (countToTake > result.results.Count - input.start)
+					countToTake = result.results.Count - input.start;
+				result.results = result.results.GetRange(input.start, countToTake);
+
+				if(input.roleId.HasValue && totalRoleRow != null)
+					result.results.Add(totalRoleRow);
+				if (input.includeTotal && totalRow != null)
+					result.results.Add(totalRow);
 			}
 			catch (Exception e)
 			{
@@ -61,6 +114,7 @@ namespace KidesServer.Logic
 				};
 			}
 
+			DiscordCache.newCacheObject("MessageListCache", input.hash, result, new TimeSpan(0, 10, 0));
 			result.success = true;
 			result.message = string.Empty;
 			return result;
@@ -174,6 +228,12 @@ namespace KidesServer.Logic
 			}
 		}
 
+		public static DiscordRoleList getRoleList(ulong serverId)
+		{
+			var result = loadRoleList(serverId);
+			return result;
+		}
+
 		private static DiscordRoleList loadRoleList(ulong serverId)
 		{
 			var results = new DiscordRoleList();
@@ -182,7 +242,8 @@ namespace KidesServer.Logic
 			{
 				var queryString = @"SELECT roles.roleId, roles.roleName, roles.roleColor, roles.isEveryone
 									FROM roles
-									WHERE roles.serverID=@serverId";
+									WHERE roles.serverID=@serverId AND NOT isDeleted
+									ORDER BY roles.roleName";
 				DataLayerShortcut.ExecuteReader<List<DiscordRoleListRow>>(readRoleList, results.results, queryString, new MySqlParameter("@serverId", serverId));
 			}
 			catch(Exception e)

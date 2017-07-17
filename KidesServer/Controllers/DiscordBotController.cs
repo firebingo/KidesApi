@@ -12,9 +12,11 @@ namespace KidesServer.Controllers
 	public class DiscordBotController : ApiController
 	{
 		[HttpGet, Route("message-count/list")]
-		public async Task<HttpResponseMessage> getMessageList([FromUri]int count, [FromUri]ulong serverId, [FromUri]DateTime? startDate = null, [FromUri]MessageSort sort = MessageSort.messageCount, [FromUri]bool isDesc = true, [FromUri]string userFilter = "")
+		public async Task<HttpResponseMessage> getMessageList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]MessageSort sort = MessageSort.messageCount, 
+			[FromUri]bool isDesc = true, [FromUri]string userFilter = "", [FromUri]ulong? roleId = null, [FromUri]bool includeTotal = false)
 		{
-			var result = DiscordBotLogic.getMesageList(count, serverId, startDate.HasValue ? startDate.Value.ToUniversalTime() : DateTime.MinValue, sort, isDesc, userFilter);
+			var input = new DiscordMessageListInput(count, serverId, start, (startDate.HasValue ? startDate.Value : DateTime.MinValue), sort, isDesc, userFilter, roleId, includeTotal);
+			var result = DiscordBotLogic.getMesageList(input);
 
 			if (result.success)
 				return Request.CreateResponse(HttpStatusCode.OK, result);
@@ -26,6 +28,17 @@ namespace KidesServer.Controllers
 		public async Task<HttpResponseMessage> getUserInfo([FromUri]ulong userId, [FromUri]ulong serverId)
 		{
 			var result = DiscordBotLogic.getUserInfo(userId, serverId);
+
+			if (result.success)
+				return Request.CreateResponse(HttpStatusCode.OK, result);
+			else
+				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
+		}
+
+		[HttpGet, Route("roles")]
+		public async Task<HttpResponseMessage> getRoles([FromUri]ulong serverId)
+		{
+			var result = DiscordBotLogic.getRoleList(serverId);
 
 			if (result.success)
 				return Request.CreateResponse(HttpStatusCode.OK, result);

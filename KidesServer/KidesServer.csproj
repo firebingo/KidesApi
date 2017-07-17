@@ -123,6 +123,7 @@
     <Compile Include="Controllers\WoTController.cs" />
     <Compile Include="Helpers\DataHelper.cs" />
     <Compile Include="Helpers\DataLayerShortcut.cs" />
+    <Compile Include="Helpers\DiscordCache.cs" />
     <Compile Include="Helpers\ErrorLog.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>

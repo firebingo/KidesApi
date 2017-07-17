@@ -3,8 +3,43 @@ using System.Collections.Generic;
 
 namespace KidesServer.Models
 {
+	public class DiscordMessageListInput
+	{
+		public int count;
+		public ulong serverId;
+		public int start;
+		public DateTime? startDate;
+		public MessageSort sort;
+		public bool isDesc;
+		public string userFilter;
+		public ulong? roleId;
+		public bool includeTotal;
+		public string hash 
+		{
+			get
+			{
+				return $"{count.ToString()}:{serverId.ToString()}:{start.ToString()}:{(startDate.HasValue ? startDate.Value.ToString() : "0")}:{sort.ToString()}:" +
+					$"{isDesc.ToString()}:{userFilter}:{(roleId.HasValue ? roleId.ToString() : "0")}:{includeTotal.ToString()}";
+			}
+		}
+
+		public DiscordMessageListInput(int count, ulong serverId, int start, DateTime? startDate, MessageSort sort, bool isDesc, string userFilter, ulong? roleId, bool includeTotal)
+		{
+			this.count = count;
+			this.serverId = serverId;
+			this.start = start;
+			this.startDate = startDate;
+			this.sort = sort;
+			this.isDesc = isDesc;
+			this.userFilter = userFilter;
+			this.roleId = roleId;
+			this.includeTotal = includeTotal;
+		}
+	}
+
 	public class DiscordMessageListResult : BaseResult
 	{
+		public int totalCount;
 		public List<DiscordMessageListRow> results;
 	}
 
@@ -12,6 +47,7 @@ namespace KidesServer.Models
 	{
 		public string userName;
 		public string role;
+		public List<string> roleIds;
 		public int messageCount;
 		public string userId;
 		public bool isDeleted;
