@@ -10,10 +10,12 @@ namespace KidesServer.Helpers
 	public static class DiscordCache
 	{
 		private static Dictionary<string, CacheObject> MessageListCache { get; set; }
+		private static Dictionary<string, CacheObject> EmojiListCache { get; set; }
 
 		static DiscordCache()
 		{
 			MessageListCache = new Dictionary<string, CacheObject>();
+			EmojiListCache = new Dictionary<string, CacheObject>();
 		}
 
 		public static void newCacheObject(string cache, string hash, object toCache, TimeSpan expireTime)

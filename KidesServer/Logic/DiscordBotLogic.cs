@@ -14,7 +14,8 @@ namespace KidesServer.Logic
 {
 	public static class DiscordBotLogic
 	{
-		public static DiscordMessageListResult getMesageList(DiscordMessageListInput input)
+		#region message list / user info
+		public static DiscordMessageListResult getMessageList(DiscordMessageListInput input)
 		{
 			DiscordMessageListResult result = new DiscordMessageListResult();
 			DiscordMessageListResult cacheResult = DiscordCache.getCacheObject("MessageListCache", input.hash) as DiscordMessageListResult;
@@ -40,7 +41,7 @@ namespace KidesServer.Logic
 				readList.rows = new List<MessageListReadModelRow>();
 				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", input.serverId), new MySqlParameter("@startDate", input.startDate));
 				var roles = loadRoleList(input.serverId);
-				//Add the rows ot the result
+				//Add the rows to the result
 				foreach(var r in readList.rows)
 				{
 					var message = new DiscordMessageListRow();
@@ -228,6 +229,20 @@ namespace KidesServer.Logic
 			}
 		}
 
+		private static string messageListSortOrderToParam(MessageSort sort, bool isDesc)
+		{
+			switch (sort)
+			{
+				default:
+				case MessageSort.messageCount:
+					return $"mainquery.rank {(isDesc ? "ASC" : "DESC")}";
+				case MessageSort.userName:
+					return $"COALESCE(mainquery.nickName, mainquery.userName) {(isDesc ? "DESC" : "ASC")}";
+			}
+		}
+		#endregion
+
+		#region role list
 		public static DiscordRoleList getRoleList(ulong serverId)
 		{
 			var result = loadRoleList(serverId);
@@ -295,18 +310,109 @@ namespace KidesServer.Logic
 			}
 			return roleBuilder.ToString();
 		}
+		#endregion
 
-		private static string messageListSortOrderToParam(MessageSort sort, bool isDesc)
+		#region emoji list
+		public static DiscordEmojiListResult getEmojiList(DiscordEmojiListInput input)
+		{
+			DiscordEmojiListResult result = new DiscordEmojiListResult();
+			DiscordEmojiListResult cacheResult = DiscordCache.getCacheObject("EmojiListCache", input.hash) as DiscordEmojiListResult;
+			if (cacheResult != null)
+				return cacheResult;
+
+			try
+			{
+				result.results = new List<DiscordEmojiListRow>();
+
+				var queryString = $@"SELECT mainquery.emojiID, mainquery.emojiName, mainquery.emCount, mainquery.rank
+									 FROM
+									 (SELECT prequery.emojiID, prequery.emojiName, prequery.emCount, @rownum := @rownum +1 as rank
+									 FROM ( SELECT @rownum := 0 ) r,
+									 (SELECT emojiID, emojiName, COUNT(*) AS emCount
+									 FROM emojiuses
+									 LEFT JOIN usersinservers on emojiuses.userID=usersinservers.userID
+									 LEFT JOIN messages on emojiuses.messageID=messages.messageID
+									 WHERE {(input.userFilterId.HasValue ? "usersinservers.userID=@userID AND" : "")} emojiuses.serverID=@serverId AND usersinservers.serverID=@serverId AND messages.serverID=@serverId 
+									 AND messages.mesTime > @startDate AND emojiuses.userID!=@botId AND NOT emojiuses.isDeleted AND NOT messages.isDeleted AND messages.mesText NOT LIKE '%emojicount%' 
+									 GROUP BY emojiID
+									 ORDER BY emCount DESC) prequery) mainquery
+									 ORDER BY {emojiListSortOrderToParam(input.sort, input.isDesc)}";
+				DataLayerShortcut.ExecuteReader<List<DiscordEmojiListRow>>(readEmojiList, result.results, queryString, new MySqlParameter("@serverId", input.serverId), 
+					new MySqlParameter("@startDate", input.startDate), new MySqlParameter("@botId", AppConfig.config.botId), new MySqlParameter("@userID", (input.userFilterId.HasValue ? input.userFilterId.Value : 0)));
+
+				//Filter by emojiname
+				if (input.nameFilter != string.Empty)
+					result.results = result.results.Where(x => x.emojiName.ToLowerInvariant().Contains(input.nameFilter.ToLowerInvariant())).ToList();
+
+				//Create the total row for the filtering
+				DiscordEmojiListRow totalRow = null;
+				if (input.includeTotal)
+				{
+					totalRow = new DiscordEmojiListRow();
+					totalRow.emojiName = "Total";
+					totalRow.useCount = result.results.Sum(x => x.useCount);
+					totalRow.emojiId = string.Empty;
+					totalRow.emojiImg = string.Empty;
+					totalRow.rank = result.results.Count;
+				}
+
+				//Set total count of results without paging
+				result.totalCount = result.results.Count;
+				//Paging
+				var countToTake = input.count;
+				if (input.start > result.results.Count)
+					input.start = result.results.Count;
+				if (countToTake > result.results.Count - input.start)
+					countToTake = result.results.Count - input.start;
+				result.results = result.results.GetRange(input.start, countToTake);
+
+				if (input.includeTotal && totalRow != null)
+					result.results.Add(totalRow);
+			}
+			catch (Exception e)
+			{
+				ErrorLog.writeLog(e.Message);
+				return new DiscordEmojiListResult()
+				{
+					success = false,
+					message = e.Message
+				};
+			}
+
+			DiscordCache.newCacheObject("EmojiListCache", input.hash, result, new TimeSpan(0, 10, 0));
+			result.success = true;
+			result.message = string.Empty;
+			return result;
+		}
+
+		private static void readEmojiList(IDataReader reader, List<DiscordEmojiListRow> data)
+		{
+			reader = reader as MySqlDataReader;
+			if (reader != null && reader.FieldCount >= 4)
+			{
+				var emObject = new DiscordEmojiListRow();
+				ulong? temp = reader.GetValue(0) as ulong?;
+				emObject.emojiId = (temp.HasValue ? temp.Value : 0).ToString();
+				emObject.emojiName = reader.GetValue(1) as string;
+				emObject.useCount = reader.GetInt32(2);
+				emObject.rank = reader.GetInt32(3);
+				emObject.emojiImg = $"https://cdn.discordapp.com/emojis/{emObject.emojiId}.png";
+				data.Add(emObject);
+			}
+		}
+
+		private static string emojiListSortOrderToParam(EmojiSort sort, bool isDesc)
 		{
 			switch (sort)
 			{
 				default:
-				case MessageSort.messageCount:
+				case EmojiSort.emojiCount:
 					return $"mainquery.rank {(isDesc ? "ASC" : "DESC")}";
-				case MessageSort.userName:
-					return $"COALESCE(mainquery.nickName, mainquery.userName) {(isDesc ? "DESC" : "ASC")}";
+				case EmojiSort.emojiName:
+					return $"mainquery.emojiName {(isDesc ? "DESC" : "ASC")}";
 			}
 		}
+		#endregion
 	}
 
 	public class MessageListReadModel

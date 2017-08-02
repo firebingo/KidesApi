@@ -12,11 +12,11 @@ namespace KidesServer.Controllers
 	public class DiscordBotController : ApiController
 	{
 		[HttpGet, Route("message-count/list")]
-		public async Task<HttpResponseMessage> getMessageList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]MessageSort sort = MessageSort.messageCount, 
+		public async Task<HttpResponseMessage> getMessageList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]MessageSort sort = MessageSort.messageCount,
 			[FromUri]bool isDesc = true, [FromUri]string userFilter = "", [FromUri]ulong? roleId = null, [FromUri]bool includeTotal = false)
 		{
 			var input = new DiscordMessageListInput(count, serverId, start, (startDate.HasValue ? startDate.Value : DateTime.MinValue), sort, isDesc, userFilter, roleId, includeTotal);
-			var result = DiscordBotLogic.getMesageList(input);
+			var result = DiscordBotLogic.getMessageList(input);
 
 			if (result.success)
 				return Request.CreateResponse(HttpStatusCode.OK, result);
@@ -39,6 +39,19 @@ namespace KidesServer.Controllers
 		public async Task<HttpResponseMessage> getRoles([FromUri]ulong serverId)
 		{
 			var result = DiscordBotLogic.getRoleList(serverId);
+
+			if (result.success)
+				return Request.CreateResponse(HttpStatusCode.OK, result);
+			else
+				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
+		}
+
+		[HttpGet, Route("emoji-count/list")]
+		public async Task<HttpResponseMessage> getEmojiList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]EmojiSort sort = EmojiSort.emojiCount,
+			[FromUri]bool isDesc = true, [FromUri]string nameFilter = "", [FromUri]bool includeTotal = false, [FromUri]ulong? userFilterId = null)
+		{
+			var input = new DiscordEmojiListInput(count, serverId, start, (startDate.HasValue ? startDate.Value : DateTime.MinValue), sort, isDesc, nameFilter, includeTotal, userFilterId);
+			var result = DiscordBotLogic.getEmojiList(input);
 
 			if (result.success)
 				return Request.CreateResponse(HttpStatusCode.OK, result);

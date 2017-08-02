@@ -13,6 +13,7 @@ namespace KidesServer.Models
 		public string iisLogLocation;
 		public string baseMusicUrl;
 		public DBConfigModel DBConfig;
+		public string botId;
 	}
 
 	public class DBConfigModel

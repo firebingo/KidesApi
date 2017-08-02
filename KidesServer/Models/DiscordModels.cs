@@ -93,4 +93,59 @@ namespace KidesServer.Models
 		userName,
 		messageCount
 	}
+
+	public class DiscordEmojiListInput
+	{
+		public int count;
+		public ulong serverId;
+		public int start;
+		public DateTime? startDate;
+		public EmojiSort sort;
+		public bool isDesc;
+		public string nameFilter;
+		public bool includeTotal;
+		public ulong? userFilterId;
+		public string hash
+		{
+			get
+			{
+				return $"{count.ToString()}:{serverId.ToString()}:{start.ToString()}:{(startDate.HasValue ? startDate.Value.ToString() : "0")}:{sort.ToString()}:" +
+					$"{isDesc.ToString()}:{nameFilter}:{includeTotal.ToString()}:{(userFilterId.HasValue ? userFilterId.Value.ToString() : "0")}";
+			}
+		}
+
+		public DiscordEmojiListInput(int count, ulong serverId, int start, DateTime? startDate, EmojiSort sort, bool isDesc, string nameFilter, bool includeTotal, ulong? userFilterId)
+		{
+			this.count = count;
+			this.serverId = serverId;
+			this.start = start;
+			this.startDate = startDate;
+			this.sort = sort;
+			this.isDesc = isDesc;
+			this.nameFilter = nameFilter;
+			this.includeTotal = includeTotal;
+			this.userFilterId = userFilterId;
+		}
+	}
+
+	public class DiscordEmojiListResult : BaseResult
+	{
+		public int totalCount;
+		public List<DiscordEmojiListRow> results;
+	}
+
+	public class DiscordEmojiListRow
+	{
+		public string emojiId;
+		public string emojiName;
+		public int useCount;
+		public int rank;
+		public string emojiImg;
+	}
+
+	public enum EmojiSort
+	{
+		emojiName,
+		emojiCount
+	}
 }
