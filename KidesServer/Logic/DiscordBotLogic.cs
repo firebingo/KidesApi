@@ -18,7 +18,7 @@ namespace KidesServer.Logic
 		public static DiscordMessageListResult getMessageList(DiscordMessageListInput input)
 		{
 			DiscordMessageListResult result = new DiscordMessageListResult();
-			DiscordMessageListResult cacheResult = DiscordCache.getCacheObject("MessageListCache", input.hash) as DiscordMessageListResult;
+			DiscordMessageListResult cacheResult = GeneralCache.getCacheObject("MessageListCache", input.hash) as DiscordMessageListResult;
 			if (cacheResult != null)
 				return cacheResult;
 
@@ -115,7 +115,7 @@ namespace KidesServer.Logic
 				};
 			}
 
-			DiscordCache.newCacheObject("MessageListCache", input.hash, result, new TimeSpan(0, 10, 0));
+			GeneralCache.newCacheObject("MessageListCache", input.hash, result, new TimeSpan(0, 10, 0));
 			result.success = true;
 			result.message = string.Empty;
 			return result;
@@ -316,7 +316,7 @@ namespace KidesServer.Logic
 		public static DiscordEmojiListResult getEmojiList(DiscordEmojiListInput input)
 		{
 			DiscordEmojiListResult result = new DiscordEmojiListResult();
-			DiscordEmojiListResult cacheResult = DiscordCache.getCacheObject("EmojiListCache", input.hash) as DiscordEmojiListResult;
+			DiscordEmojiListResult cacheResult = GeneralCache.getCacheObject("EmojiListCache", input.hash) as DiscordEmojiListResult;
 			if (cacheResult != null)
 				return cacheResult;
 
@@ -379,7 +379,7 @@ namespace KidesServer.Logic
 				};
 			}
 
-			DiscordCache.newCacheObject("EmojiListCache", input.hash, result, new TimeSpan(0, 10, 0));
+			GeneralCache.newCacheObject("EmojiListCache", input.hash, result, new TimeSpan(0, 10, 0));
 			result.success = true;
 			result.message = string.Empty;
 			return result;

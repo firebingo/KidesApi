@@ -7,22 +7,24 @@ using System.Web;
 
 namespace KidesServer.Helpers
 {
-	public static class DiscordCache
+	public static class GeneralCache
 	{
 		private static Dictionary<string, CacheObject> MessageListCache { get; set; }
 		private static Dictionary<string, CacheObject> EmojiListCache { get; set; }
+		private static Dictionary<string, CacheObject> SongStatCache { get; set; }
 
-		static DiscordCache()
+		static GeneralCache()
 		{
 			MessageListCache = new Dictionary<string, CacheObject>();
 			EmojiListCache = new Dictionary<string, CacheObject>();
+			SongStatCache = new Dictionary<string, CacheObject>();
 		}
 
 		public static void newCacheObject(string cache, string hash, object toCache, TimeSpan expireTime)
 		{
 			try
 			{
-				Dictionary<string, CacheObject> useCache = typeof(DiscordCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
+				Dictionary<string, CacheObject> useCache = typeof(GeneralCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
 				CacheObject cacheObject = new CacheObject(toCache, expireTime);
 				if (useCache.ContainsKey(hash))
 					useCache.Remove(hash);
@@ -38,7 +40,7 @@ namespace KidesServer.Helpers
 		{
 			try
 			{
-				Dictionary<string, CacheObject> useCache = typeof(DiscordCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
+				Dictionary<string, CacheObject> useCache = typeof(GeneralCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
 				if (useCache.ContainsKey(hash))
 				{
 					var cachedObject = useCache[hash];

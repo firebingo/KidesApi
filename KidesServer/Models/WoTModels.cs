@@ -53,10 +53,9 @@ namespace KidesServer.Models
 		public int account_id;
 		public long created_at;
 		public long updated_at;
-		[JsonProperty("private")]
 		public WotPrivate privateData;
 		public int global_rating;
-		WotUserStats statistics;
+		public WotUserStats statistics;
 	}
 
 	[Serializable]
@@ -74,8 +73,8 @@ namespace KidesServer.Models
 	[Serializable]
 	public class WotUserStats
 	{
-		WotUserStatsAll all;
-		Dictionary<int, int> frags;
+		public WotUserStatsAll all;
+		public Dictionary<int, int> frags;
 		public int trees_cut;
 	}
 

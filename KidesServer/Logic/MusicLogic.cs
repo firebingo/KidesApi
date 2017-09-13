@@ -7,6 +7,7 @@ using System.IO;
 using Tx.Windows;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using KidesServer.Helpers;
 
 namespace KidesServer.Logic
 {
@@ -74,9 +75,14 @@ namespace KidesServer.Logic
 		public static SongStatResult getSongStats()
 		{
 			SongStatResult result = new SongStatResult();
+			SongStatResult cacheResult = GeneralCache.getCacheObject("SongStatCache", "GeneralSongStats") as SongStatResult;
+			if (cacheResult != null)
+				return cacheResult;
+
 			result.message = "";
 			result.success = false;
 			result.songCounts = new Dictionary<string, int>();
+
 			var logPath = "";
 			List<string> logFiles = new List<string>();
 			try
@@ -122,6 +128,7 @@ namespace KidesServer.Logic
 				}
 			}
 
+			GeneralCache.newCacheObject("SongStatCache", "GeneralSongStats", result, new TimeSpan(12, 0, 0));
 			result.success = true;
 			result.message = "";
 			return result;
