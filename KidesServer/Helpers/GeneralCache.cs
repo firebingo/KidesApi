@@ -1,34 +1,27 @@
-﻿using KidesServer.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Web;
 
 namespace KidesServer.Helpers
 {
 	public static class GeneralCache
 	{
-		private static Dictionary<string, CacheObject> MessageListCache { get; set; }
-		private static Dictionary<string, CacheObject> EmojiListCache { get; set; }
-		private static Dictionary<string, CacheObject> SongStatCache { get; set; }
-
-		static GeneralCache()
-		{
-			MessageListCache = new Dictionary<string, CacheObject>();
-			EmojiListCache = new Dictionary<string, CacheObject>();
-			SongStatCache = new Dictionary<string, CacheObject>();
-		}
+		private static Dictionary<string, Dictionary<string, CacheObject>> ObjectCache = new Dictionary<string, Dictionary<string, CacheObject>>();
+		private static object dictLock = new object();
 
 		public static void newCacheObject(string cache, string hash, object toCache, TimeSpan expireTime)
 		{
 			try
 			{
-				Dictionary<string, CacheObject> useCache = typeof(GeneralCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
-				CacheObject cacheObject = new CacheObject(toCache, expireTime);
-				if (useCache.ContainsKey(hash))
-					useCache.Remove(hash);
-				useCache.Add(hash, cacheObject);
+				lock (dictLock)
+				{
+					if (!ObjectCache.ContainsKey(cache))
+						ObjectCache.Add(cache, new Dictionary<string, CacheObject>());
+
+					CacheObject cacheObject = new CacheObject(toCache, expireTime);
+					if (ObjectCache[cache].ContainsKey(hash))
+						ObjectCache[cache].Remove(hash);
+					ObjectCache[cache].Add(hash, cacheObject);
+				}
 			}
 			catch (Exception e)
 			{
@@ -40,18 +33,22 @@ namespace KidesServer.Helpers
 		{
 			try
 			{
-				Dictionary<string, CacheObject> useCache = typeof(GeneralCache).GetProperty(cache, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null) as Dictionary<string, CacheObject>;
-				if (useCache.ContainsKey(hash))
+				lock (dictLock)
 				{
-					var cachedObject = useCache[hash];
-					var expired = cachedObject.isExpired();
-					if (!expired)
-						return useCache[hash].CachedObject;
-					else
-						useCache.Remove(hash);
+					if (!ObjectCache.ContainsKey(cache))
+						return null;
+					if (ObjectCache[cache].ContainsKey(hash))
+					{
+						var cachedObject = ObjectCache[cache][hash];
+						var expired = cachedObject.isExpired();
+						if (!expired)
+							return ObjectCache[cache][hash].CachedObject;
+						else
+							ObjectCache[cache].Remove(hash);
 
+					}
+					return null;
 				}
-				return null;
 			}
 			catch (Exception e)
 			{

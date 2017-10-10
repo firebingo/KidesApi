@@ -8,6 +8,7 @@ using Tx.Windows;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using KidesServer.Helpers;
+using System.Collections.Concurrent;
 
 namespace KidesServer.Logic
 {
@@ -31,18 +32,33 @@ namespace KidesServer.Logic
 			result.url = baseUrl;
 			songFound = false;
 			foundSong = null;
+			var searchLower = search.ToLowerInvariant();
 
 			var start = DateTime.Now;
+			var matches = new ConcurrentBag<SongModel>();
 			Parallel.ForEach(songList.songList, (song, ParallelLoopState) =>
 			{
-				var found = checkSong(song, search);
+				var found = checkSong(song, searchLower);
 				if(found != null)
 				{
-					foundSong = found;
 					songFound = true;
-					ParallelLoopState.Stop();
+					matches.Add(found);
 				}
 			});
+
+			//Since we find matches in parallel this helps find exact matches better.
+			//ex searching for happiness will find a song named happiness if it exists instead
+			// of possibly finding a song with happiness in its title first.
+			var shortestDistance = int.MaxValue;
+			foreach (var match in matches)
+			{
+				var distance = songModelDistance(match, searchLower);
+				if(distance < shortestDistance)
+				{
+					foundSong = match;
+					shortestDistance = distance;
+				}
+			}
 
 			if (songFound && foundSong != null)
 			{
@@ -61,9 +77,52 @@ namespace KidesServer.Logic
 			return result;
 		}
 
+		private static int songModelDistance(SongModel song, string search)
+		{ 
+			var distance = int.MaxValue;
+			var shortestDistance = int.MaxValue;
+			var lower = song.English.ToLowerInvariant();
+			if (lower != string.Empty)
+			{
+				distance = HelperFunctions.LevenshteinDistance(search, lower);
+				if (distance < shortestDistance)
+				{
+					shortestDistance = distance;
+				}
+			}
+			lower = song.Hiragana.ToLowerInvariant();
+			if (lower != string.Empty)
+			{
+				distance = HelperFunctions.LevenshteinDistance(search, lower);
+				if (distance < shortestDistance)
+				{
+					shortestDistance = distance;
+				}
+			}
+			lower = song.Japanese.ToLowerInvariant();
+			if (lower != string.Empty)
+			{
+				distance = HelperFunctions.LevenshteinDistance(search, lower);
+				if (distance < shortestDistance)
+				{
+					shortestDistance = distance;
+				}
+			}
+			lower = song.Roman.ToLowerInvariant();
+			if (lower != string.Empty)
+			{
+				distance = HelperFunctions.LevenshteinDistance(search, lower);
+				if (distance < shortestDistance)
+				{
+					shortestDistance = distance;
+				}
+			}
+			return shortestDistance;
+		}
+
 		public static SongModel checkSong(SongModel song, string search)
 		{
-			Regex searchReg = new Regex(search.ToLowerInvariant());
+			Regex searchReg = new Regex(search);
 			var titleCat = $"{song.English.ToLowerInvariant()}|{song.Roman.ToLowerInvariant()}|{song.Japanese.ToLowerInvariant()}|{song.Hiragana.ToLowerInvariant()}";
 			if (searchReg.Match(titleCat).Success)
 			{
@@ -83,7 +142,6 @@ namespace KidesServer.Logic
 			result.success = false;
 			result.songCounts = new Dictionary<string, int>();
 
-			var logPath = "";
 			List<string> logFiles = new List<string>();
 			try
 			{
