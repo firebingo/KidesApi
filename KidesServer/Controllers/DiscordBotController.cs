@@ -15,7 +15,7 @@ namespace KidesServer.Controllers
 		public async Task<HttpResponseMessage> getMessageList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]MessageSort sort = MessageSort.messageCount,
 			[FromUri]bool isDesc = true, [FromUri]string userFilter = "", [FromUri]ulong? roleId = null, [FromUri]bool includeTotal = false)
 		{
-			var input = new DiscordMessageListInput(count, serverId, start, (startDate.HasValue ? startDate.Value : DateTime.MinValue), sort, isDesc, userFilter, roleId, includeTotal);
+			var input = new DiscordMessageListInput(count, serverId, start, (startDate.HasValue ? startDate : null), sort, isDesc, userFilter, roleId, includeTotal);
 			var result = DiscordBotLogic.getMessageList(input);
 
 			if (result.success)

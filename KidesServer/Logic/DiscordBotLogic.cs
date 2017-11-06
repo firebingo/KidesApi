@@ -25,18 +25,35 @@ namespace KidesServer.Logic
 			result.results = new List<DiscordMessageListRow>();
 			try
 			{
-				var queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.rank, mainquery.isBanned
+				var queryString = string.Empty;
+				if (input.startDate.HasValue)
+				{
+					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.rank, mainquery.isBanned
 									 FROM
 									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, @rownum := @rownum +1 as rank, prequery.isBanned
 									 FROM ( SELECT @rownum := 0 ) r,
-									 (SELECT messages.userID, usersinservers.nickName, users.userName, usersinservers.roleIDs, COUNT(messages.userID) AS mesCount, usersinservers.isDeleted, usersinservers.isBanned
-									 FROM messages 
-									 LEFT JOIN usersinservers ON messages.userID=usersinservers.userID
-									 LEFT JOIN users on usersinservers.userID=users.userID
+									 (SELECT usersinservers.userID, usersinservers.nickName, users.userName, usersinservers.roleIDs, COUNT(usersinservers.userID) AS mesCount, usersinservers.isDeleted, usersinservers.isBanned
+									 FROM users 
+									 LEFT JOIN usersinservers ON users.userID=usersinservers.userID
+									 LEFT JOIN messages on messages.userID=users.userID
 									 WHERE messages.serverID=@serverId AND usersinservers.serverID=@serverId AND NOT messages.isDeleted AND messages.mesTime > @startDate
-									 GROUP BY userID
+									 GROUP BY messages.userID
 									 ORDER BY mesCount DESC) prequery) mainquery
 									 ORDER BY {messageListSortOrderToParam(input.sort, input.isDesc)}";
+				}
+				else
+				{
+					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.rank, mainquery.isBanned
+									 FROM
+									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, @rownum := @rownum +1 as rank, prequery.isBanned
+									 FROM ( SELECT @rownum := 0 ) r,
+									 (SELECT usersinservers.userID, usersinservers.nickName, users.userName, usersinservers.roleIDs, usersInServers.mesCount, usersinservers.isDeleted, usersinservers.isBanned
+									 FROM users 
+									 LEFT JOIN usersinservers ON users.userID=usersinservers.userID
+									 WHERE usersinservers.serverID=@serverId AND usersinservers.mesCount > 0
+									 ORDER BY mesCount DESC) prequery) mainquery
+									 ORDER BY {messageListSortOrderToParam(input.sort, input.isDesc)}";
+				}
 				var readList = new MessageListReadModel();
 				readList.rows = new List<MessageListReadModelRow>();
 				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", input.serverId), new MySqlParameter("@startDate", input.startDate));
@@ -332,7 +349,7 @@ namespace KidesServer.Logic
 									 FROM emojiuses
 									 LEFT JOIN usersinservers on emojiuses.userID=usersinservers.userID
 									 LEFT JOIN messages on emojiuses.messageID=messages.messageID
-									 WHERE {(input.userFilterId.HasValue ? "usersinservers.userID=@userID AND" : "")} emojiuses.serverID=@serverId AND usersinservers.serverID=@serverId AND messages.serverID=@serverId 
+									 WHERE {(input.userFilterId.HasValue ? "usersinservers.userID=@userID AND" : "")} emojiuses.serverID=@serverId
 									 AND messages.mesTime > @startDate AND emojiuses.userID!=@botId AND NOT emojiuses.isDeleted AND NOT messages.isDeleted AND messages.mesText NOT LIKE '%emojicount%' 
 									 GROUP BY emojiID
 									 ORDER BY emCount DESC) prequery) mainquery
