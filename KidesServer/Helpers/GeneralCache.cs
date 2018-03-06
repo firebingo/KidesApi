@@ -56,6 +56,31 @@ namespace KidesServer.Helpers
 				return null;
 			}
 		}
+
+		public static bool containsCacheObject(string cache, string hash)
+		{
+			try
+			{
+				lock (dictLock)
+				{
+					if (!ObjectCache.ContainsKey(cache))
+						return false;
+					if (!ObjectCache[cache].ContainsKey(hash))
+						return false;
+					var expired = ObjectCache[cache][hash].isExpired();
+					if (!expired)
+						return true;
+					else
+						ObjectCache[cache].Remove(hash);
+					return false;
+				}
+			}
+			catch (Exception e)
+			{
+				ErrorLog.writeLog(e.Message);
+				return false;
+			}
+		}
 	}
 
 	public class CacheObject

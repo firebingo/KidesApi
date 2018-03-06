@@ -58,5 +58,18 @@ namespace KidesServer.Controllers
 			else
 				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
 		}
+
+		[HttpGet, Route("word-count/list")]
+		public async Task<HttpResponseMessage> getWordCountList([FromUri]int count, [FromUri]ulong serverId, [FromUri]int start, [FromUri]DateTime? startDate = null, [FromUri]WordCountSort sort = WordCountSort.count,
+			[FromUri]bool isDesc = true, [FromUri]string wordFilter = "", [FromUri]bool includeTotal = false, [FromUri]ulong? userFilterId = null, int lengthFloor = 0, bool englishOnly = false)
+		{
+			var input = new DiscordWordListInput(count, serverId, start, startDate, sort, isDesc, wordFilter, includeTotal, userFilterId, lengthFloor, englishOnly);
+			var result = await DiscordBotLogic.getWordCountList(input);
+
+			if (result.success)
+				return Request.CreateResponse(HttpStatusCode.OK, result);
+			else
+				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
+		}
 	}
 }

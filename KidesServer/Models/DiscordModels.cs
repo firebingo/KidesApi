@@ -148,4 +148,62 @@ namespace KidesServer.Models
 		emojiName,
 		emojiCount
 	}
+
+	public class DiscordWordListInput
+	{
+		public int count;
+		public ulong serverId;
+		public int start;
+		public DateTime? startDate;
+		public WordCountSort sort;
+		public bool isDesc;
+		public string wordFilter;
+		public bool includeTotal;
+		public ulong? userFilterId;
+		public int lengthFloor;
+		public bool englishOnly;
+		public string hash
+		{
+			get
+			{
+				return $"{count.ToString()}:{serverId.ToString()}:{start.ToString()}:{(startDate.HasValue ? startDate.Value.ToString() : "_")}:{sort.ToString()}:{isDesc.ToString()}" +
+				$":{wordFilter}:{includeTotal.ToString()}:{(userFilterId.HasValue ? userFilterId.Value.ToString() : "_")}:{lengthFloor.ToString()}:{englishOnly.ToString()}";
+			}
+		}
+
+		public DiscordWordListInput(int count, ulong serverId, int start, DateTime? startDate, WordCountSort sort, bool isDesc, string wordFilter, bool includeTotal, ulong? userFilterId, int lengthFloor, bool englishOnly)
+		{
+			this.count = count;
+			this.serverId = serverId;
+			this.start = start;
+			this.startDate = startDate;
+			this.sort = sort;
+			this.isDesc = isDesc;
+			this.wordFilter = wordFilter;
+			this.includeTotal = includeTotal;
+			this.userFilterId = userFilterId;
+			this.lengthFloor = lengthFloor;
+			this.englishOnly = englishOnly;
+		}
+	}
+
+	public enum WordCountSort
+	{
+		word,
+		count
+	}
+
+	public class DiscordWordListResult : BaseResult
+	{
+		public int totalCount;
+		public List<DiscordWordListRow> results;
+	}
+
+	public class DiscordWordListRow
+	{
+		public string word;
+		public int useCount;
+		public int rank;
+
+	}
 }

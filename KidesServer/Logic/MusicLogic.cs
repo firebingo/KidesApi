@@ -84,32 +84,26 @@ namespace KidesServer.Logic
 			var lower = song.English.ToLowerInvariant();
 			if (lower != string.Empty)
 			{
-				distance = HelperFunctions.LevenshteinDistance(search, lower);
-				if (distance < shortestDistance)
-				{
-					shortestDistance = distance;
-				}
+				distanceCheck();
 			}
 			lower = song.Hiragana.ToLowerInvariant();
 			if (lower != string.Empty)
 			{
-				distance = HelperFunctions.LevenshteinDistance(search, lower);
-				if (distance < shortestDistance)
-				{
-					shortestDistance = distance;
-				}
+				distanceCheck();
 			}
 			lower = song.Japanese.ToLowerInvariant();
 			if (lower != string.Empty)
 			{
-				distance = HelperFunctions.LevenshteinDistance(search, lower);
-				if (distance < shortestDistance)
-				{
-					shortestDistance = distance;
-				}
+				distanceCheck();
 			}
 			lower = song.Roman.ToLowerInvariant();
 			if (lower != string.Empty)
+			{
+				distanceCheck();
+			}
+			return shortestDistance;
+
+			void distanceCheck()
 			{
 				distance = HelperFunctions.LevenshteinDistance(search, lower);
 				if (distance < shortestDistance)
@@ -117,7 +111,6 @@ namespace KidesServer.Logic
 					shortestDistance = distance;
 				}
 			}
-			return shortestDistance;
 		}
 
 		public static SongModel checkSong(SongModel song, string search)

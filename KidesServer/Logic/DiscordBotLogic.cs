@@ -6,9 +6,12 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Text;
-using System.Web;
 using Newtonsoft.Json;
 using KidesServer.Helpers;
+using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
+using System.Net;
 
 namespace KidesServer.Logic
 {
@@ -59,7 +62,7 @@ namespace KidesServer.Logic
 				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", input.serverId), new MySqlParameter("@startDate", input.startDate));
 				var roles = loadRoleList(input.serverId);
 				//Add the rows to the result
-				foreach(var r in readList.rows)
+				foreach (var r in readList.rows)
 				{
 					var message = new DiscordMessageListRow();
 					message.userName = $"{r.userName}{(r.nickName != null ? $" ({r.nickName})" : "")}";
@@ -73,7 +76,7 @@ namespace KidesServer.Logic
 					result.results.Add(message);
 				}
 				//Filter by username/nickname
-				if(input.userFilter != string.Empty)
+				if (input.userFilter != string.Empty)
 					result.results = result.results.Where(x => x.userName.ToLowerInvariant().Contains(input.userFilter.ToLowerInvariant())).ToList();
 				//Create the total row for the filtering
 				DiscordMessageListRow totalRow = null;
@@ -117,7 +120,7 @@ namespace KidesServer.Logic
 					countToTake = result.results.Count - input.start;
 				result.results = result.results.GetRange(input.start, countToTake);
 
-				if(input.roleId.HasValue && totalRoleRow != null)
+				if (input.roleId.HasValue && totalRoleRow != null)
 					result.results.Add(totalRoleRow);
 				if (input.includeTotal && totalRow != null)
 					result.results.Add(totalRow);
@@ -278,7 +281,7 @@ namespace KidesServer.Logic
 									ORDER BY roles.roleName";
 				DataLayerShortcut.ExecuteReader<List<DiscordRoleListRow>>(readRoleList, results.results, queryString, new MySqlParameter("@serverId", serverId));
 			}
-			catch(Exception e)
+			catch (Exception e)
 			{
 				ErrorLog.writeLog(e.Message);
 				return new DiscordRoleList()
@@ -349,12 +352,12 @@ namespace KidesServer.Logic
 									 FROM emojiuses
 									 LEFT JOIN usersinservers on emojiuses.userID=usersinservers.userID
 									 LEFT JOIN messages on emojiuses.messageID=messages.messageID
-									 WHERE {(input.userFilterId.HasValue ? "usersinservers.userID=@userID AND" : "")} emojiuses.serverID=@serverId
+									 WHERE {(input.userFilterId.HasValue ? "usersinservers.userID=@userID AND" : "")} usersinservers.serverID=@serverId AND emojiuses.serverID=@serverId
 									 AND messages.mesTime > @startDate AND emojiuses.userID!=@botId AND NOT emojiuses.isDeleted AND NOT messages.isDeleted AND messages.mesText NOT LIKE '%emojicount%' 
 									 GROUP BY emojiID
 									 ORDER BY emCount DESC) prequery) mainquery
 									 ORDER BY {emojiListSortOrderToParam(input.sort, input.isDesc)}";
-				DataLayerShortcut.ExecuteReader<List<DiscordEmojiListRow>>(readEmojiList, result.results, queryString, new MySqlParameter("@serverId", input.serverId), 
+				DataLayerShortcut.ExecuteReader<List<DiscordEmojiListRow>>(readEmojiList, result.results, queryString, new MySqlParameter("@serverId", input.serverId),
 					new MySqlParameter("@startDate", input.startDate), new MySqlParameter("@botId", AppConfig.config.botId), new MySqlParameter("@userID", (input.userFilterId.HasValue ? input.userFilterId.Value : 0)));
 
 				//Filter by emojiname
@@ -413,8 +416,30 @@ namespace KidesServer.Logic
 				emObject.emojiName = reader.GetValue(1) as string;
 				emObject.useCount = reader.GetInt32(2);
 				emObject.rank = reader.GetInt32(3);
+				//For now im going to check these on the frontend because it takes a long time to try to request and check each image.
+				//var imageGif = $"https://cdn.discordapp.com/emojis/{emObject.emojiId}.gif";
 				emObject.emojiImg = $"https://cdn.discordapp.com/emojis/{emObject.emojiId}.png";
 				data.Add(emObject);
+			}
+		}
+
+		private static bool doesImageGifExist(string url)
+		{
+			HttpWebRequest request = WebRequest.Create(url) as HttpWebRequest;
+			request.Timeout = 750;
+			request.Method = "HEAD";
+			request.Accept = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8";
+			request.Headers.Add("accept-encoding", "gzip, deflate, br");
+			try
+			{
+				using (HttpWebResponse response = request.GetResponse() as HttpWebResponse)
+				{
+					return (response.StatusCode == HttpStatusCode.OK);
+				}
+			}
+			catch
+			{
+				return false;
 			}
 		}
 
@@ -427,6 +452,244 @@ namespace KidesServer.Logic
 					return $"mainquery.rank {(isDesc ? "ASC" : "DESC")}";
 				case EmojiSort.emojiName:
 					return $"mainquery.emojiName {(isDesc ? "DESC" : "ASC")}";
+			}
+		}
+		#endregion
+
+		#region word counts
+		public static async Task<DiscordWordListResult> getWordCountList(DiscordWordListInput input)
+		{
+			DiscordWordListResult result = new DiscordWordListResult();
+			DiscordWordListResult cacheResult = GeneralCache.getCacheObject("WordCountListCache", input.hash) as DiscordWordListResult;
+			if (cacheResult != null)
+				return cacheResult;
+
+			var messages = await loadMessagesText(input.startDate);
+			ConcurrentDictionary<string, ConcurrentDictionary<ulong, int>> words = null;
+			var discordMentionReg = new Regex(@"<@\d+>");
+			var discordEmojiReg = new Regex(@"<:.+:\d+>");
+			var discordIdenReg = new Regex(@"^.+#\d{4}");
+			var fileReg = new Regex(@"^.+\..+$");
+			var foreignERegex = new Regex(@"[^\u0000-\u007F]");
+			var foreignIRegex = new Regex(@"\p{L}");
+			var ignoreChars = new List<char>() { '`', '~', '$', '%', '^', '|', '+', '=', '<', '>', '\n', '\r', '\t', '\b', '\v', '\a', '\0', 'ﾟ', 'ˆ', 'ᵃ', 'ｰ', 'ー', 'ˈ', 'ː' };
+			var parOpts = new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount / 2 };
+
+			var wordsCached = GeneralCache.containsCacheObject("MessageTextCache", $"WordsList:{(input.startDate.HasValue ? input.startDate.Value.Ticks.ToString() : "_")}:{input.englishOnly.ToString()}");
+			if (wordsCached)
+				words = GeneralCache.getCacheObject("MessageTextCache", $"WordsList:{(input.startDate.HasValue ? input.startDate.Value.Ticks.ToString() : "_")}:{input.englishOnly.ToString()}") as ConcurrentDictionary<string, ConcurrentDictionary<ulong, int>>;
+
+			if (words == null)
+			{
+				//remove code blocks
+				messages = messages.Where(x => !x.mesText.Contains("```")).ToList();
+				words = new ConcurrentDictionary<string, ConcurrentDictionary<ulong, int>>();
+				Parallel.ForEach(messages, parOpts, (message) =>
+				{
+					//split the messages on spaces/new lines.
+					var split = message.mesText.Trim().Split(new[] { "\r\n", "\r", "\n", " " }, StringSplitOptions.RemoveEmptyEntries);
+					//remove words with http (probably links), discord formats, or files
+					split = split.Where(x => !x.Contains("http") && !discordMentionReg.IsMatch(x) && !discordEmojiReg.IsMatch(x) && !discordIdenReg.IsMatch(x) && !fileReg.IsMatch(x)).ToArray();
+					//remove puncuation/unicode and lowercase all words.
+					for (var i = 0; i < split.Length; ++i)
+					{
+						if (input.englishOnly)
+							split[i] = foreignERegex.Replace(split[i], "");
+						else
+							split[i] = foreignIRegex.Matches(split[i]).Cast<Match>().Aggregate("", (s, e) => s + e.Value, s => s);
+						split[i] = new string(split[i].Where(x => !char.IsPunctuation(x) && !ignoreChars.Contains(x) && !char.IsNumber(x) && !char.IsSurrogate(x)).ToArray());
+						split[i] = split[i].ToLowerInvariant();
+					}
+					//remove empty entries.
+					split = split.Where(x => x.Trim() != string.Empty).ToArray();
+					//if the word is just a string of the same characters
+					split = split.Where(x => (x.Length > 3 ? x.Distinct().Count() > 1 : true)).ToArray();
+					//remove long words that are just 2 characters
+					split = split.Where(x => (x.Length > 6 ? x.Distinct().Count() > 2 : true)).ToArray();
+					//remove longer words that are just 3 characters
+					split = split.Where(x => (x.Length >= 10 ? x.Distinct().Count() > 3 : true)).ToArray();
+					//this is getting dumb
+					split = split.Where(x => (x.Length > 50 ? x.Distinct().Count() > 4 : true)).ToArray();
+					//lets put a "resonable" cap on this
+					split = split.Where(x => x.Length <= 125).ToArray();
+					for (var i = 0; i < split.Length; ++i)
+					{
+						//add each word with its own dictionary with the userid and count for that user.
+						words.AddOrUpdate(split[i], (newKey) =>
+							{
+								var ret = new ConcurrentDictionary<ulong, int>();
+								ret.TryAdd(message.userId, 1);
+								return ret;
+							},
+							(key, oldValue) =>
+							{
+								oldValue.AddOrUpdate(message.userId, 1, (keyI, oldValueI) => ++oldValueI);
+								return oldValue;
+							});
+					}
+				});
+			}
+
+			if (!wordsCached)
+				GeneralCache.newCacheObject("MessageTextCache", $"WordsList:{(input.startDate.HasValue ? input.startDate.Value.Ticks.ToString() : "_")}:{input.englishOnly.ToString()}", words, new TimeSpan(12, 0, 0));
+
+			//Generate total row
+			DiscordWordListRow totalRow = null;
+			if (input.includeTotal)
+			{
+				totalRow = new DiscordWordListRow();
+				var totalCount = words.Sum(x =>
+				{
+					return x.Value.Sum(y => y.Value);
+				});
+				totalRow.rank = words.Count;
+				totalRow.useCount = totalCount;
+				totalRow.word = "(Total)";
+			}
+			//User filtering and user total row
+			DiscordWordListRow totalUserRow = null;
+			Dictionary<string, Dictionary<ulong, int>> userWords = null;
+			if (input.userFilterId.HasValue)
+			{
+				totalUserRow = new DiscordWordListRow();
+				userWords = new Dictionary<string, Dictionary<ulong, int>>(words.Where(x => x.Value.Count != 0).ToDictionary(k => k.Key, v => v.Value.ToDictionary(i => i.Key, j => j.Value)));
+				foreach(var word in userWords)
+				{
+					var ids = word.Value.Keys.ToArray();
+					ids = ids.Where(x => x != input.userFilterId.Value).ToArray();
+					foreach (var id in ids)
+					{
+						word.Value.Remove(id);
+					}
+				}
+				userWords = userWords.Where(x => x.Value.Count != 0).ToDictionary(k => k.Key, v => v.Value);
+				var totalCount = userWords.Sum(x =>
+				{
+					return x.Value.Sum(y => y.Value);
+				});
+				totalUserRow.rank = userWords.Count;
+				totalUserRow.useCount = totalCount;
+				totalUserRow.word = "(Total (User))";
+			}
+
+			//add the words to the result list.
+			result.results = new List<DiscordWordListRow>();
+			if (userWords != null)
+			{
+				foreach (var word in userWords)
+				{
+					var row = new DiscordWordListRow();
+					row.word = word.Key;
+					row.useCount = word.Value.Sum(x => x.Value);
+					result.results.Add(row);
+				}
+			}
+			else
+			{
+				foreach (var word in words)
+				{
+					var row = new DiscordWordListRow();
+					row.word = word.Key;
+					row.useCount = word.Value.Sum(x => x.Value);
+					result.results.Add(row);
+				}
+			}
+
+			//Sort by count desc and rank
+			result.results.Sort((x, y) =>
+			{
+				return y.useCount.CompareTo(x.useCount);
+			});
+			Parallel.For(0, result.results.Count, parOpts, (i) =>
+			{
+				result.results[i].rank = i + 1;
+			});
+
+			//Word Filtering
+			if (!string.IsNullOrWhiteSpace(input.wordFilter))
+				result.results = result.results.Where(x => x.word.StartsWith(input.wordFilter.ToLowerInvariant())).ToList();
+
+			//Length Filtering
+			if (input.lengthFloor > 0)
+				result.results = result.results.Where(x => x.word.Length >= input.lengthFloor).ToList();
+
+			//Sort
+			switch (input.sort)
+			{
+				case WordCountSort.count:
+					result.results.Sort((x, y) =>
+					{
+						if (input.isDesc)
+							return x.rank.CompareTo(y.rank);
+						else
+							return y.rank.CompareTo(x.rank);
+
+					});
+					break;
+				case WordCountSort.word:
+					result.results.Sort((x, y) =>
+					{
+						if (!input.isDesc)
+							return x.word.CompareTo(y.word);
+						else
+							return y.word.CompareTo(x.word);
+					});
+					break;
+				default:
+					break;
+			}
+
+			//Set total count of results without paging
+			result.totalCount = result.results.Count;
+			//Paging
+			var countToTake = input.count;
+			if (input.start > result.results.Count)
+				input.start = result.results.Count;
+			if (countToTake > result.results.Count - input.start)
+				countToTake = result.results.Count - input.start;
+			result.results = result.results.GetRange(input.start, countToTake);
+
+			//Add total rows
+			if (input.includeTotal)
+			{
+				if (input.userFilterId.HasValue)
+					result.results.Add(totalUserRow);
+				result.results.Add(totalRow);
+			}
+
+			GeneralCache.newCacheObject("WordCountListCache", input.hash, result, new TimeSpan(12, 0, 0));
+			GC.Collect();
+			result.success = true;
+			result.message = string.Empty;
+			return result;
+		}
+
+		public static async Task<List<MessageTextModel>> loadMessagesText(DateTime? startDate)
+		{
+			var result = new List<MessageTextModel>();
+			List<MessageTextModel> cacheResult = GeneralCache.getCacheObject("MessageTextCache", $"MessageTextList{(startDate.HasValue ? startDate.Value.Ticks.ToString() : "0")}") as List<MessageTextModel>;
+			if (cacheResult != null)
+				return cacheResult;
+
+			var query = $@"SELECT txt, userID FROM 
+						  (SELECT COALESCE(mesText, editedMesText) AS txt, userID
+						  FROM messages 
+						  WHERE NOT isDeleted AND userId != @botId AND mesTime > @startDate) x
+						  WHERE txt != '' AND txt NOT LIKE '%@botId%'";
+			DataLayerShortcut.ExecuteReader<List<MessageTextModel>>(readMessagesText, result, query,
+				new MySqlParameter("@botId", AppConfig.config.botId), new MySqlParameter("@startDate", startDate.HasValue ? startDate.Value : DateTime.MinValue));
+
+			GeneralCache.newCacheObject("MessageTextCache", $"MessageTextList{(startDate.HasValue ? startDate.Value.Ticks.ToString() : "0")}", result, new TimeSpan(12, 0, 0));
+			return result;
+		}
+
+		private static void readMessagesText(IDataReader reader, List<MessageTextModel> data)
+		{
+			reader = reader as MySqlDataReader;
+			if (reader != null)
+			{
+				var message = new MessageTextModel(reader.GetString(0), (reader.GetValue(1) as ulong?).Value);
+				data.Add(message);
 			}
 		}
 		#endregion
@@ -460,5 +723,20 @@ namespace KidesServer.Logic
 		public DateTime? joinedDate;
 		public bool isDeleted;
 		public bool isBanned;
+	}
+
+	[Serializable]
+	public struct MessageTextModel
+	{
+		private readonly string _mesText;
+		private readonly ulong _userId;
+		public string mesText { get { return _mesText; } }
+		public ulong userId { get { return _userId; } }
+
+		public MessageTextModel(string t, ulong userId)
+		{
+			_mesText = t;
+			_userId = userId;
+		}
 	}
 }
