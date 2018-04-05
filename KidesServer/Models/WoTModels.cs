@@ -53,7 +53,7 @@ namespace KidesServer.Models
 		public int account_id;
 		public long created_at;
 		public long updated_at;
-		public WotPrivate privateData;
+		public WotPrivate @private;
 		public int global_rating;
 		public WotUserStats statistics;
 	}
