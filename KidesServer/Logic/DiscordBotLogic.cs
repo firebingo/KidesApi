@@ -31,49 +31,63 @@ namespace KidesServer.Logic
 				var queryString = string.Empty;
 				if (input.startDate.HasValue)
 				{
-					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.rank, mainquery.isBanned
+					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.isBanned
 									 FROM
-									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, @rownum := @rownum +1 as rank, prequery.isBanned
-									 FROM ( SELECT @rownum := 0 ) r,
+									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, prequery.isBanned
+									 FROM
 									 (SELECT usersinservers.userID, usersinservers.nickName, users.userName, usersinservers.roleIDs, COUNT(usersinservers.userID) AS mesCount, usersinservers.isDeleted, usersinservers.isBanned
 									 FROM users 
 									 LEFT JOIN usersinservers ON users.userID=usersinservers.userID
 									 LEFT JOIN messages on messages.userID=users.userID
 									 WHERE messages.serverID=@serverId AND usersinservers.serverID=@serverId AND NOT messages.isDeleted AND messages.mesTime > @startDate
-									 GROUP BY messages.userID
-									 ORDER BY mesCount DESC) prequery) mainquery
-									 ORDER BY {messageListSortOrderToParam(input.sort, input.isDesc)}";
+									 GROUP BY messages.userID) prequery) mainquery";
 				}
 				else
 				{
-					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.rank, mainquery.isBanned
+					queryString = $@"SELECT mainquery.userID, mainquery.nickName, mainquery.userName, mainquery.roleIDs, mainquery.mesCount, mainquery.isDeleted, mainquery.isBanned
 									 FROM
-									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, @rownum := @rownum +1 as rank, prequery.isBanned
-									 FROM ( SELECT @rownum := 0 ) r,
+									 (SELECT prequery.userID, prequery.nickName, prequery.userName, prequery.roleIDs, prequery.mesCount, prequery.isDeleted, prequery.isBanned
+									 FROM
 									 (SELECT usersinservers.userID, usersinservers.nickName, users.userName, usersinservers.roleIDs, usersInServers.mesCount, usersinservers.isDeleted, usersinservers.isBanned
 									 FROM users 
 									 LEFT JOIN usersinservers ON users.userID=usersinservers.userID
-									 WHERE usersinservers.serverID=@serverId AND usersinservers.mesCount > 0
-									 ORDER BY mesCount DESC) prequery) mainquery
-									 ORDER BY {messageListSortOrderToParam(input.sort, input.isDesc)}";
+									 WHERE usersinservers.serverID=@serverId AND usersinservers.mesCount > 0) prequery) mainquery";
 				}
 				var readList = new MessageListReadModel();
 				readList.rows = new List<MessageListReadModelRow>();
 				DataLayerShortcut.ExecuteReader<List<MessageListReadModelRow>>(readMessageList, readList.rows, queryString, new MySqlParameter("@serverId", input.serverId), new MySqlParameter("@startDate", input.startDate));
 				var roles = loadRoleList(input.serverId);
 				//Add the rows to the result
-				foreach (var r in readList.rows)
+				readList.rows = readList.rows.OrderByDescending(x => x.messageCount).ToList();
+				for (var i = 0; i < readList.rows.Count; ++i)
 				{
+					var r = readList.rows[i];
 					var message = new DiscordMessageListRow();
 					message.userName = $"{r.userName}{(r.nickName != null ? $" ({r.nickName})" : "")}";
 					message.messageCount = r.messageCount;
 					message.userId = r.userId.ToString();
 					message.isDeleted = r.isDeleted;
-					message.rank = r.rank;
+					message.rank = i+1;
 					message.isBanned = r.isBanned;
 					message.role = buildRoleList(r.roleIds, roles);
 					message.roleIds = new List<string>(r.roleIds.ConvertAll<string>(x => x.ToString()));
 					result.results.Add(message);
+				}
+				//Sort
+				switch(input.sort)
+				{
+					case MessageSort.messageCount:
+						if (input.isDesc)
+							result.results = result.results.OrderBy(x => x.rank).ToList();
+						else
+							result.results = result.results.OrderByDescending(x => x.rank).ToList();
+						break;
+					case MessageSort.userName:
+						if (input.isDesc)
+							result.results = result.results.OrderByDescending(x => x.userName).ToList();
+						else
+							result.results = result.results.OrderBy(x => x.userName).ToList();
+						break;
 				}
 				//Filter by username/nickname
 				if (input.userFilter != string.Empty)
@@ -158,8 +172,7 @@ namespace KidesServer.Logic
 					mesObject.roleIds = new List<ulong>();
 				mesObject.messageCount = reader.GetInt32(4);
 				mesObject.isDeleted = reader.GetBoolean(5);
-				mesObject.rank = reader.GetInt32(6);
-				mesObject.isBanned = reader.GetBoolean(7);
+				mesObject.isBanned = reader.GetBoolean(6);
 				data.Add(mesObject);
 			}
 		}
@@ -708,7 +721,6 @@ namespace KidesServer.Logic
 		public int messageCount;
 		public ulong userId;
 		public bool isDeleted;
-		public int rank;
 		public bool isBanned;
 	}
 
