@@ -204,6 +204,49 @@ namespace KidesServer.Models
 		public string word;
 		public int useCount;
 		public int rank;
+	}
 
+	public enum StatType
+	{
+		userCount = 0,
+		uniqueUsers = 1
+	}
+
+	public class DiscordStatListInput
+	{
+		public DateTime startDate;
+		public DateTime? endDate;
+		public StatType statType;
+		public ulong serverId;
+
+		public string hash
+		{
+			get
+			{
+				return $"{startDate.ToString()}:{(endDate.HasValue ? endDate.Value.ToString() : "_")}:{statType.ToString()}:{serverId.ToString()}";
+			}
+		}
+
+		public DiscordStatListInput(DateTime startDate, DateTime? endDate, StatType statType, ulong serverId)
+		{
+			this.startDate = startDate;
+			this.endDate = endDate;
+			this.statType = statType;
+			this.serverId = serverId;
+		}
+	}
+
+	public class DiscordStatResult : BaseResult
+	{
+		public List<DiscordStatRow> results;
+	}
+
+	public class DiscordStatRow
+	{
+		public string serverId;
+		public StatType statType;
+		public DateTime date;
+		public long statValue;
+		public string statText;
 	}
 }

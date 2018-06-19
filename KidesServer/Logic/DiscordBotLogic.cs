@@ -706,6 +706,78 @@ namespace KidesServer.Logic
 			}
 		}
 		#endregion
+
+		#region stats
+		public static Task<DiscordStatResult> getServerStats(DiscordStatListInput input)
+		{
+			DiscordStatResult result = new DiscordStatResult();
+			//DiscordStatResult cacheResult = GeneralCache.getCacheObject("StatResultCache", input.hash) as DiscordStatResult;
+			//if (cacheResult != null)
+			//	return cacheResult;
+
+			try
+			{
+				result.results = new List<DiscordStatRow>();
+				var query = "SELECT * FROM stats WHERE statType=@statType AND serverId=@serverId AND statTime>@startDate AND statTime<@endDate";
+				var readRows = new List<DiscordStatRow>();
+				DataLayerShortcut.ExecuteReader(readServerStats, readRows, query, new MySqlParameter("@statType", input.statType), new MySqlParameter("@serverId", input.serverId), 
+					new MySqlParameter("@startDate", input.startDate), new MySqlParameter("@endDate", input.endDate ?? DateTime.UtcNow));
+				var statDict = new Dictionary<DateTime, List<long>>();
+				foreach (var res in readRows)
+				{
+					if (statDict.ContainsKey(res.date.Date))
+						statDict[res.date.Date].Add(res.statValue);
+					else
+						statDict.Add(res.date.Date, new List<long>() { res.statValue });
+				}
+				foreach (var s in statDict)
+				{
+					var newRow = new DiscordStatRow()
+					{
+						serverId = input.serverId.ToString(),
+						statType = input.statType,
+						date = s.Key
+					};
+					if (s.Value.Count >= 1)
+						newRow.statValue = Convert.ToInt64(s.Value.Average());
+					else
+						newRow.statValue = 0;
+					result.results.Add(newRow);
+				}
+			}
+			catch (Exception e)
+			{
+				
+				ErrorLog.writeLog(e.Message);
+				return Task.FromResult(new DiscordStatResult()
+				{
+					success = false,
+					message = e.Message
+				});
+			}
+
+			//GeneralCache.newCacheObject("StatResultCache", input.hash, result, new TimeSpan(0, 10, 0));
+			result.success = true;
+			result.message = string.Empty;
+			return Task.FromResult(result);
+		}
+
+		private static void readServerStats(IDataReader reader, List<DiscordStatRow> data)
+		{
+			reader = reader as MySqlDataReader;
+			if (reader != null && reader.FieldCount >= 5)
+			{
+				var statObj = new DiscordStatRow();
+				ulong? temp = reader.GetValue(0) as ulong?;
+				statObj.serverId = (temp ?? 0).ToString();
+				statObj.statType = (StatType)Enum.Parse(typeof(StatType), reader.GetInt32(1).ToString());
+				statObj.date = reader.GetDateTime(2);
+				statObj.statValue = reader.GetInt64(3);
+				statObj.statText = reader.GetValue(4) as string;
+				data.Add(statObj);
+			}
+		}
+		#endregion
 	}
 
 	public class MessageListReadModel

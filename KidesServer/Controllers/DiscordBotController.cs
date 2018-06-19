@@ -71,5 +71,17 @@ namespace KidesServer.Controllers
 			else
 				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
 		}
+
+		[HttpGet, Route("stats")]
+		public async Task<HttpResponseMessage> getServerStats([FromUri]ulong serverId, [FromUri]DateTime startDate, [FromUri]StatType type, [FromUri]DateTime? endDate = null)
+		{
+			var input = new DiscordStatListInput(startDate, endDate ?? DateTime.UtcNow, type, serverId);
+			var result = await DiscordBotLogic.getServerStats(input);
+
+			if (result.success)
+				return Request.CreateResponse(HttpStatusCode.OK, result);
+			else
+				return Request.CreateErrorResponse(HttpStatusCode.BadRequest, result.message);
+		}
 	}
 }
