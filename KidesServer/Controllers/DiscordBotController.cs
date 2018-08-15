@@ -73,9 +73,9 @@ namespace KidesServer.Controllers
 		}
 
 		[HttpGet, Route("stats")]
-		public async Task<HttpResponseMessage> getServerStats([FromUri]ulong serverId, [FromUri]DateTime startDate, [FromUri]StatType type, [FromUri]DateTime? endDate = null)
+		public async Task<HttpResponseMessage> getServerStats([FromUri]ulong serverId, [FromUri]DateTime startDate, [FromUri]StatType type, [FromUri]DateGroup dateGroup = DateGroup.day, [FromUri]DateTime? endDate = null)
 		{
-			var input = new DiscordStatListInput(startDate, endDate ?? DateTime.UtcNow, type, serverId);
+			var input = new DiscordStatListInput(startDate, endDate ?? DateTime.UtcNow, type, dateGroup, serverId);
 			var result = await DiscordBotLogic.getServerStats(input);
 
 			if (result.success)

@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Net;
+using System.Globalization;
 
 namespace KidesServer.Logic
 {
@@ -718,17 +719,40 @@ namespace KidesServer.Logic
 			try
 			{
 				result.results = new List<DiscordStatRow>();
-				var query = "SELECT * FROM stats WHERE statType=@statType AND serverId=@serverId AND statTime>@startDate AND statTime<@endDate";
+				var query = "SELECT * FROM stats WHERE statType=@statType AND serverId=@serverId AND dateGroup=@dateGroup AND statTime BETWEEN @startDate AND @endDate";
 				var readRows = new List<DiscordStatRow>();
 				DataLayerShortcut.ExecuteReader(readServerStats, readRows, query, new MySqlParameter("@statType", input.statType), new MySqlParameter("@serverId", input.serverId), 
-					new MySqlParameter("@startDate", input.startDate), new MySqlParameter("@endDate", input.endDate ?? DateTime.UtcNow));
+					new MySqlParameter("@startDate", input.startDate.ToUniversalTime()), new MySqlParameter("@endDate", input.endDate ?? DateTime.UtcNow.ToUniversalTime()), new MySqlParameter("@dateGroup", input.dateGroup));
 				var statDict = new Dictionary<DateTime, List<long>>();
 				foreach (var res in readRows)
 				{
-					if (statDict.ContainsKey(res.date.Date))
-						statDict[res.date.Date].Add(res.statValue);
+					DateTime nKey = DateTime.UtcNow;
+					switch(input.dateGroup)
+					{
+						case DateGroup.hour:
+							nKey = new DateTime(res.date.Year, res.date.Month, res.date.Day, res.date.Hour, 0, 0);
+							break;
+						default:
+						case DateGroup.day:
+							nKey = res.date.Date;
+							break;
+						case DateGroup.week:
+							var firstDay = CultureInfo.CurrentCulture.DateTimeFormat.FirstDayOfWeek;
+							var sub = res.date.DayOfWeek - firstDay;
+							nKey = res.date.Date.AddDays(-sub);
+							break;
+						case DateGroup.month:
+							//Im using 3 for the day because it doesn't matter for the month grouping and it will stop timezones wrapping it to the last month
+							nKey = new DateTime(res.date.Year, res.date.Month, 3);
+							break;
+						case DateGroup.year:
+							nKey = new DateTime(res.date.Year, 1, 3);
+							break;
+					}
+					if (statDict.ContainsKey(nKey))
+						statDict[nKey].Add(res.statValue);
 					else
-						statDict.Add(res.date.Date, new List<long>() { res.statValue });
+						statDict.Add(nKey, new List<long>() { res.statValue });
 				}
 				foreach (var s in statDict)
 				{

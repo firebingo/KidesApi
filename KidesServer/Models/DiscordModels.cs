@@ -212,26 +212,37 @@ namespace KidesServer.Models
 		uniqueUsers = 1
 	}
 
+	public enum DateGroup
+	{
+		hour = 0,
+		day = 1,
+		week = 2,
+		month = 3,
+		year = 4
+	}
+
 	public class DiscordStatListInput
 	{
 		public DateTime startDate;
 		public DateTime? endDate;
 		public StatType statType;
+		public DateGroup dateGroup;
 		public ulong serverId;
 
 		public string hash
 		{
 			get
 			{
-				return $"{startDate.ToString()}:{(endDate.HasValue ? endDate.Value.ToString() : "_")}:{statType.ToString()}:{serverId.ToString()}";
+				return $"{startDate.ToString()}:{(endDate.HasValue ? endDate.Value.ToString() : "_")}:{statType.ToString()}:{serverId.ToString()}:{dateGroup.ToString()}";
 			}
 		}
 
-		public DiscordStatListInput(DateTime startDate, DateTime? endDate, StatType statType, ulong serverId)
+		public DiscordStatListInput(DateTime startDate, DateTime? endDate, StatType statType, DateGroup dateCategory, ulong serverId)
 		{
 			this.startDate = startDate;
 			this.endDate = endDate;
 			this.statType = statType;
+			this.dateGroup = dateCategory;
 			this.serverId = serverId;
 		}
 	}
